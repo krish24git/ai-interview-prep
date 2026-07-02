@@ -1,75 +1,135 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+interface Interview {
+  _id: string;
+  role: string;
+  experience: string;
+  score: number;
+  createdAt: string;
+}
+
 export default function Dashboard() {
-  const [report, setReport] = useState<any>(null);
+  const router = useRouter();
+
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("report");
+    const token = localStorage.getItem("token");
 
-    if (!stored) return;
+    if (!token) {
+      alert("Please login first.");
+      router.push("/login");
+      return;
+    }
 
-    setReport(JSON.parse(stored));
-  }, []);
+    fetch("/api/interview", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setInterviews(data.interviews);
+        } else {
+          alert(data.message);
+        }
 
-  if (!report) {
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, [router]);
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        Loading Report...
+        Loading...
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-10">
-
       <h1 className="text-4xl font-bold mb-8">
-        AI Interview Report
+        Interview History
       </h1>
 
-      <div className="bg-slate-800 rounded-xl p-6 mb-8">
+      {interviews.length === 0 ? (
+        <p>No interviews found.</p>
+      ) : (
+        interviews.map((item) => (
+          <div
+            key={item._id}
+            className="bg-slate-800 rounded-xl p-6 mb-6"
+          >
+            <h2 className="text-2xl font-bold">
+              {item.role}
+            </h2>
 
-        <h2 className="text-2xl text-green-400">
-          Overall Score
-        </h2>
+            <p className="text-gray-300 mt-2">
+              Experience: {item.experience}
+            </p>
 
-        <p className="text-5xl font-bold mt-4">
-          {report.overallScore}/100
-        </p>
+            <p className="text-green-400 mt-2">
+              Score: {item.score}/100
+            </p>
 
-      </div>
+            <p className="text-gray-400 mt-2">
+              {new Date(item.createdAt).toLocaleString()}
+            </p>
 
-      {report.results.map((item: any, index: number) => (
-        <div
-          key={index}
-          className="bg-slate-800 p-6 rounded-xl mb-6"
-        >
-          <h2 className="text-xl font-bold mb-3">
-            Question {index + 1}
-          </h2>
+            <div className="mt-4 flex gap-4">
 
-          <p className="mb-4 text-blue-400">
-            {item.question}
-          </p>
+              <button
+                onClick={() => router.push(`/dashboard/${item._id}`)}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+              >
+                View
+              </button>
 
-          <p className="mb-4">
-            <strong>Your Answer:</strong>
-            <br />
-            {item.answer}
-          </p>
+              <button
+                onClick={async () => {
+                  const confirmDelete = confirm(
+                    "Are you sure you want to delete this interview?"
+                  );
 
-          <p className="text-green-400">
-            Score : {item.score}/10
-          </p>
+                  if (!confirmDelete) return;
 
-          <p className="mt-3 text-gray-300">
-            {item.feedback}
-          </p>
+                  const token = localStorage.getItem("token");
 
-        </div>
-      ))}
+                  const res = await fetch(`/api/interview/${item._id}`, {
+                    method: "DELETE",
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  });
 
+                  const data = await res.json();
+
+                  if (data.success) {
+                    setInterviews((prev) =>
+                      prev.filter((i) => i._id !== item._id)
+                    );
+                  } else {
+                    alert(data.message);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded"
+              >
+                Delete
+              </button>
+
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

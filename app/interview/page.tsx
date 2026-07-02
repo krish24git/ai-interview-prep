@@ -21,10 +21,19 @@ export default function InterviewPage() {
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        alert("Please login first.");
+        router.push("/login");
+        return;
+      }
+
       const res = await fetch("/api/interview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           role,
@@ -40,18 +49,19 @@ export default function InterviewPage() {
 
       if (!res.ok || !data.success) {
         alert(data.message || "Failed to generate interview.");
-        setLoading(false);
         return;
       }
 
-      // Save COMPLETE question objects
       const generatedQuestions: Question[] = data.questions;
-
-      console.log("Questions:", generatedQuestions);
 
       localStorage.setItem(
         "questions",
         JSON.stringify(generatedQuestions)
+      );
+
+      localStorage.setItem(
+        "interviewId",
+        data.interviewId
       );
 
       router.push("/result");
@@ -66,7 +76,6 @@ export default function InterviewPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900">
       <div className="bg-slate-800 p-8 rounded-xl shadow-lg w-[450px]">
-
         <h1 className="text-3xl font-bold text-center text-white mb-6">
           AI Interview
         </h1>
@@ -119,7 +128,9 @@ export default function InterviewPage() {
         </div>
 
         <div className="mb-6">
-          <label className="text-white font-medium">Number of Questions</label>
+          <label className="text-white font-medium">
+            Number of Questions
+          </label>
 
           <select
             value={questions}
@@ -139,7 +150,6 @@ export default function InterviewPage() {
         >
           {loading ? "Generating..." : "Start Interview"}
         </button>
-
       </div>
     </div>
   );

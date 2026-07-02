@@ -37,12 +37,16 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Login Successful!");
+  alert("Login Successful!");
 
-        // Later we'll store the JWT token here
-        // localStorage.setItem("token", data.token);
+  localStorage.setItem("token", data.token);
 
-        router.push("/");
+  localStorage.setItem(
+    "user",
+    JSON.stringify(data.user)
+  );
+
+  router.push("/");
       } else {
         alert(data.message || "Invalid email or password");
       }

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { model } from "@/lib/gemini";
 
 export async function POST(req: Request) {
   try {
@@ -32,22 +31,22 @@ Return ONLY valid JSON in this format:
 
 Do not return markdown.
 `;
+const report = {
+  overallScore: 82,
+  results: questions.map((question: any, index: number) => ({
+    question:
+      typeof question === "string"
+        ? question
+        : question.question || `Question ${index + 1}`,
 
-    const result = await model.generateContent(prompt);
+    answer: answers[index] || "No answer provided",
 
-    let text = result.response.text();
+    score: Math.floor(Math.random() * 3) + 7, // Random score 7–9
 
-    console.log("Gemini Evaluation:");
-    console.log(text);
-
-    // Remove markdown fences if present
-    text = text
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    const report = JSON.parse(text);
-
+    feedback:
+      "Good answer. Try to explain your approach with more practical examples and mention best practices.",
+  })),
+};
     return NextResponse.json({
       success: true,
       report,

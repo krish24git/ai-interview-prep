@@ -73,17 +73,39 @@ export default function ResultPage() {
       console.log(data);
 
       if (!data.success) {
-        alert(data.message);
-        setLoading(false);
-        return;
-      }
+  alert(data.message);
+  setLoading(false);
+  return;
+}
 
-      localStorage.setItem(
-        "report",
-        JSON.stringify(data.report)
-      );
+// Save report locally
+localStorage.setItem(
+  "report",
+  JSON.stringify(data.report)
+);
 
-      router.push("/dashboard");
+// Get interview ID
+const interviewId = localStorage.getItem("interviewId");
+
+// Save answers, score and feedback to MongoDB
+if (interviewId) {
+  const updateRes = await fetch(`/api/interview/${interviewId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      answers: updatedAnswers,
+      score: data.report.overallScore,
+      feedback: data.report.results,
+    }),
+  });
+
+  const updateData = await updateRes.json();
+  console.log("Interview Updated:", updateData);
+}
+
+router.push("/dashboard");
     } catch (error) {
       console.error(error);
       alert("Evaluation failed.");
