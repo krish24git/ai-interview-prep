@@ -1,63 +1,100 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { groq } from "@/lib/groq";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { questions, answers } = await req.json();
+    const {
+      role,
+      experience,
+      difficulty,
+      questions,
+      answers,
+    } = await req.json();
 
     const prompt = `
-You are a Senior Full Stack Developer Interviewer.
+You are a senior technical interviewer.
 
-Evaluate the candidate's interview.
+Evaluate every answer individually.
+
+Job Role: ${role}
+Experience: ${experience}
+Difficulty: ${difficulty}
 
 Questions:
-${JSON.stringify(questions, null, 2)}
+${JSON.stringify(questions)}
 
 Answers:
-${JSON.stringify(answers, null, 2)}
+${JSON.stringify(answers)}
 
-Return ONLY valid JSON in this format:
+For EACH question give:
+- score out of 10
+- short feedback
+
+Also give:
+- overallScore (0-100)
+- technicalKnowledge (0-10)
+- communication (0-10)
+- problemSolving (0-10)
+- confidence (0-10)
+- overall feedback
+- strengths
+- improvements
+
+Return ONLY valid JSON.
 
 {
-  "overallScore": 45,
-  "results": [
+  "overallScore": 85,
+  "technicalKnowledge": 8,
+  "communication": 9,
+  "problemSolving": 8,
+  "confidence": 8,
+  "feedback": "Overall detailed feedback",
+  "strengths": [
+    "Point 1",
+    "Point 2"
+  ],
+  "improvements": [
+    "Point 1",
+    "Point 2"
+  ],
+  "questionAnalysis": [
     {
-      "question": "...",
-      "answer": "...",
+      "question": "Question text",
+      "answer": "Candidate answer",
       "score": 8,
-      "feedback": "Good answer but mention Virtual DOM."
+      "feedback": "Good answer with minor improvements."
     }
   ]
 }
-
-Do not return markdown.
 `;
-const report = {
-  overallScore: 82,
-  results: questions.map((question: any, index: number) => ({
-    question:
-      typeof question === "string"
-        ? question
-        : question.question || `Question ${index + 1}`,
 
-    answer: answers[index] || "No answer provided",
-
-    score: Math.floor(Math.random() * 3) + 7, // Random score 7–9
-
-    feedback:
-      "Good answer. Try to explain your approach with more practical examples and mention best practices.",
-  })),
-};
-    return NextResponse.json({
-      success: true,
-      report,
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
     });
-  } catch (error) {
-    console.error(error);
+
+    const text = completion.choices[0].message.content || "";
+
+    const cleaned = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const evaluation = JSON.parse(cleaned);
+
+    return NextResponse.json(evaluation);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       {
-        success: false,
-        message: "Evaluation failed",
+        error: "Evaluation failed",
       },
       { status: 500 }
     );

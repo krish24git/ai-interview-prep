@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { connectDB } from "@/lib/mongodb";
 import Interview from "@/models/Interview";
+import { groq } from "@/lib/groq";
 
 export async function POST(req: Request) {
   try {
@@ -31,46 +32,55 @@ export async function POST(req: Request) {
       email: string;
     };
 
-    const parsed = {
-      questions: [
-        {
-          id: 1,
-          question: `Tell me about yourself as a ${role}.`,
-        },
-        {
-          id: 2,
-          question: `Explain your experience with ${role}.`,
-        },
-        {
-          id: 3,
-          question: "What are the advantages of React?",
-        },
-        {
-          id: 4,
-          question: "Explain event loop in JavaScript.",
-        },
-        {
-          id: 5,
-          question: "How would you optimize a web application?",
-        },
-      ],
-    };
+    const prompt = `
+Generate ${questions} technical interview questions.
+
+Role: ${role}
+Experience: ${experience}
+Difficulty: ${difficulty}
+
+Return ONLY JSON in this format:
+
+[
+  {
+    "question": "..."
+  }
+]
+`;
+
+const completion = await groq.chat.completions.create({
+  model: "llama-3.3-70b-versatile",
+  messages: [
+    {
+      role: "user",
+      content: prompt,
+    },
+  ],
+  temperature: 0.7,
+});
+
+const responseText = completion.choices[0].message.content || "";
+
+
+    const parsedQuestions = JSON.parse(
+      responseText
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim()
+    );
 
     const interview = await Interview.create({
       userId: decoded.id,
       role,
       experience,
       techStack: [],
-      questions: parsed.questions.map((q: any) => q.question),
-      answers: [],
-      feedback: "",
-      score: 0,
+      questions: parsedQuestions.map((item: { question: string }) => item.question),
     });
 
     return NextResponse.json({
       success: true,
       interviewId: interview._id,
-      questions: parsed.questions,
+      questions: interview.questions,
     });
   } catch (error) {
     console.error(error);

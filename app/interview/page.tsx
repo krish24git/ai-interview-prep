@@ -43,9 +43,9 @@ export default function InterviewPage() {
         }),
       });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      console.log("Interview API Response:", data);
+      console.log(JSON.stringify(data, null, 2));
 
       if (!res.ok || !data.success) {
         alert(data.message || "Failed to generate interview.");
@@ -58,6 +58,10 @@ export default function InterviewPage() {
         "questions",
         JSON.stringify(generatedQuestions)
       );
+
+      localStorage.setItem("role", role);
+      localStorage.setItem("experience", experience);
+      localStorage.setItem("difficulty", difficulty);
 
       localStorage.setItem(
         "interviewId",

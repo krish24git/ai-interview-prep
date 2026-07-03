@@ -3,27 +3,30 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Question = {
-  id: number;
-  question: string;
-};
-
 export default function ResultPage() {
   const router = useRouter();
 
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<string[]>([]);
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
   const [answers, setAnswers] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState("");
 
   useEffect(() => {
     const storedQuestions = localStorage.getItem("questions");
+    const storedRole = localStorage.getItem("role");
+
+    if (storedRole) {
+      setRole(storedRole);
+    }
 
     if (!storedQuestions) return;
 
     try {
-      const parsed: Question[] = JSON.parse(storedQuestions);
+      const parsed = JSON.parse(storedQuestions) as string[];
+
+      console.log("Loaded Questions:", parsed);
 
       setQuestions(parsed);
       setAnswers(new Array(parsed.length).fill(""));
@@ -36,7 +39,7 @@ export default function ResultPage() {
     if (answers.length > 0) {
       setAnswer(answers[current] || "");
     }
-  }, [current]);
+  }, [current, answers]);
 
   const nextQuestion = async () => {
     if (answer.trim() === "") {
@@ -46,7 +49,6 @@ export default function ResultPage() {
 
     const updatedAnswers = [...answers];
     updatedAnswers[current] = answer;
-
     setAnswers(updatedAnswers);
 
     if (current < questions.length - 1) {
@@ -54,15 +56,27 @@ export default function ResultPage() {
       return;
     }
 
+    if (!role) {
+      alert("Interview role is missing.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("token");
+      const interviewId = localStorage.getItem("interviewId");
+
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          role,
+          experience: localStorage.getItem("experience"),
+          difficulty: localStorage.getItem("difficulty"),
           questions,
           answers: updatedAnswers,
         }),
@@ -70,45 +84,43 @@ export default function ResultPage() {
 
       const data = await res.json();
 
-      console.log(data);
+      if (!res.ok) {
+        alert(data.error || "Evaluation failed.");
+        setLoading(false);
+        return;
+      }
 
-      if (!data.success) {
-  alert(data.message);
-  setLoading(false);
-  return;
-}
+      localStorage.setItem("report", JSON.stringify(data));
 
-// Save report locally
-localStorage.setItem(
-  "report",
-  JSON.stringify(data.report)
-);
+      if (interviewId) {
+        await fetch(`/api/interview/${interviewId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            answers: updatedAnswers,
+            score: data.overallScore,
+            feedback: JSON.stringify(data.questionAnalysis),
+            overallFeedback: data.feedback,
+            strengths: data.strengths,
+            improvements: data.improvements,
+            communication: data.communication,
+            technicalKnowledge: data.technicalKnowledge,
+            problemSolving: data.problemSolving,
+            confidence: data.confidence,
+            status: "completed",
+          }),
+        });
 
-// Get interview ID
-const interviewId = localStorage.getItem("interviewId");
+      }
 
-// Save answers, score and feedback to MongoDB
-if (interviewId) {
-  const updateRes = await fetch(`/api/interview/${interviewId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      answers: updatedAnswers,
-      score: data.report.overallScore,
-      feedback: data.report.results,
-    }),
-  });
-
-  const updateData = await updateRes.json();
-  console.log("Interview Updated:", updateData);
-}
-
-router.push("/dashboard");
-    } catch (error) {
-      console.error(error);
+      router.push("/dashboard");
+    } catch (err) {
+      console.error(err);
       alert("Evaluation failed.");
+    } finally {
       setLoading(false);
     }
   };
@@ -133,15 +145,14 @@ router.push("/dashboard");
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center px-5">
-
       <div className="bg-slate-800 w-full max-w-4xl rounded-xl p-8 shadow-xl">
 
         <h1 className="text-4xl text-center font-bold text-white mb-8">
           AI Interview
         </h1>
 
-        <div className="flex justify-between items-center mb-6">
-          <p className="text-blue-400 font-semibold text-lg">
+        <div className="flex justify-between mb-6">
+          <p className="text-blue-400 font-semibold">
             Question {current + 1} of {questions.length}
           </p>
 
@@ -151,7 +162,7 @@ router.push("/dashboard");
         </div>
 
         <div className="bg-slate-700 rounded-lg p-6 text-white text-lg leading-8">
-          {questions[current].question}
+          {questions[current]}
         </div>
 
         <textarea
@@ -163,7 +174,6 @@ router.push("/dashboard");
         />
 
         <div className="flex justify-between mt-8">
-
           <button
             onClick={previousQuestion}
             disabled={current === 0}
@@ -183,11 +193,9 @@ router.push("/dashboard");
               ? "Finish Interview"
               : "Next Question"}
           </button>
-
         </div>
 
       </div>
-
     </div>
   );
 }
